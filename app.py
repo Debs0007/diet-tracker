@@ -30,9 +30,8 @@ except Exception as e:
     st.error(f"❌ Unexpected error during Google Sheets authentication:\n{e}")
     st.stop()
 
-# ========== HELPER ==========
+# ========== HELPERS ==========
 def ensure_worksheet(name, header):
-    """Ensure a worksheet exists; create if missing."""
     try:
         ws = spreadsheet.worksheet(name)
     except WorksheetNotFound:
@@ -42,14 +41,16 @@ def ensure_worksheet(name, header):
     return spreadsheet.worksheet(name)
 
 # ========== WORKSHEETS ==========
-meals_ws = ensure_worksheet(MEALS_SHEET,
-    ["date", "time", "food_name", "grams", "protein_g", "carbs_g", "fat_g", "calories", "daily_calorie_goal", "daily_protein_goal", "notes"])
-goals_ws = ensure_worksheet(GOALS_SHEET, ["month_year","calorie_goal","protein_goal","created_at"])
-notes_ws = ensure_worksheet(NOTES_SHEET, ["date","note","created_at"])
+meals_ws = ensure_worksheet(MEALS_SHEET, [
+    "date", "time", "food_name", "grams", "protein_g", "carbs_g", "fat_g",
+    "calories", "daily_calorie_goal", "daily_protein_goal", "notes"
+])
+goals_ws = ensure_worksheet(GOALS_SHEET, ["month_year", "calorie_goal", "protein_goal", "created_at"])
+notes_ws = ensure_worksheet(NOTES_SHEET, ["date", "note", "created_at"])
 
 # ========== UI ==========
 st.title("🍽️ Diet Tracker")
-st.markdown("Enter each food you eat — it auto-saves to Google Sheets.")
+st.markdown("Enter each food you eat — auto-saves to Google Sheets.")
 
 # Left column: quick food entry
 col1, col2 = st.columns([2,1])
@@ -64,7 +65,7 @@ with col1:
     calories = st.number_input("🔥 Calories (kcal)", min_value=0.0, value=200.0, step=1.0)
     daily_cal_goal = st.number_input("🎯 Daily calorie goal", min_value=0.0, value=1700.0, step=50.0)
     daily_prot_goal = st.number_input("🎯 Daily protein goal", min_value=0.0, value=80.0, step=5.0)
-    entry_notes = st.text_area("📝 Notes (optional)", value="", max_chars=500)
+    entry_notes = st.text_area("📝 Notes (optional)", max_chars=500)
 
 with col2:
     st.markdown("### 📊 Quick Actions")
@@ -96,11 +97,8 @@ def upsert_goal(ws, month_label, cal_goal, prot_goal):
     return "created"
 
 if set_goal_btn:
-    try:
-        result = upsert_goal(goals_ws, month_year_label, calorie_goal_input, protein_goal_input)
-        st.success(f"Goal {result} for {month_year_label}: {calorie_goal_input} kcal/day, {protein_goal_input} g protein/day")
-    except APIError as e:
-        st.error(f"❌ Failed to update goal: {e}")
+    result = upsert_goal(goals_ws, month_year_label, calorie_goal_input, protein_goal_input)
+    st.success(f"Goal {result} for {month_year_label}: {calorie_goal_input} kcal/day, {protein_goal_input} g protein/day")
 
 # ========== AUTO-SAVE FOOD ENTRY ==========
 def append_meal_row(ws, row):
@@ -126,8 +124,8 @@ if add_btn:
         try:
             append_meal_row(meals_ws, row)
             st.success(f"Saved: {food_name} ({row[2]} at {row[1]})")
-        except APIError as e:
-            st.error(f"❌ Failed to save food: {e}")
+        except Exception as e:
+            st.error(f"Save failed: {e}")
 
 # ========== DAILY SUMMARY ==========
 st.markdown("## 📅 Daily Summary")
@@ -140,38 +138,42 @@ except Exception as e:
     st.error(f"Failed to fetch meals: {e}")
     meals_df = pd.DataFrame()
 
-if not meals_df.empty:
-    df_day = meals_df[meals_df["date"] == summary_date.strftime("%Y-%m-%d")]
-    if not df_day.empty:
+if meals_df.empty:
+    st.info("No food entries yet.")
+else:
+    day_str = summary_date.strftime("%Y-%m-%d")
+    df_day = meals_df[meals_df["date"] == day_str]
+    if df_day.empty:
+        st.info("No entries for selected date.")
+    else:
+        # metrics
         sum_cal = df_day["calories"].astype(float).sum()
         sum_prot = df_day["protein_g"].astype(float).sum()
         sum_carbs = df_day["carbs_g"].astype(float).sum()
         sum_fat = df_day["fat_g"].astype(float).sum()
 
-        st.write(f"**Date:** {summary_date.strftime('%Y-%m-%d')}")
+        st.write(f"**Date:** {day_str}")
         col_a, col_b, col_c = st.columns(3)
         col_a.metric("Calories (kcal)", f"{sum_cal:.0f}")
         col_b.metric("Protein (g)", f"{sum_prot:.1f}")
         col_c.metric("Carbs (g)", f"{sum_carbs:.1f}")
         st.write(f"Fat: {sum_fat:.1f} g")
 
-        # Show monthly goal comparison
+        # monthly goals check
         month_label_for_day = summary_date.strftime("%Y-%m")
         goals = goals_ws.get_all_records()
         goal_row = next((g for g in goals if g.get("month_year") == month_label_for_day), None)
         if goal_row:
             cal_goal = float(goal_row.get("calorie_goal"))
             prot_goal = float(goal_row.get("protein_goal"))
+            st.write(f"**Goal for {month_label_for_day}:** {cal_goal} kcal/day, {prot_goal} g protein/day")
             cal_ok = "✅" if sum_cal <= cal_goal else "⚠️ Exceeded"
             prot_ok = "✅" if sum_prot >= prot_goal else "⚠️ Low"
-            st.write(f"**Goal for {month_label_for_day}:** {cal_goal} kcal/day, {prot_goal} g protein/day")
-            st.write(f"Calories: {cal_ok}  —  Protein: {prot_ok}")
+            st.write(f"Calories: {cal_ok} — Protein: {prot_ok}")
+        else:
+            st.info("No goal set for this month.")
 
         st.dataframe(df_day.reset_index(drop=True))
-    else:
-        st.info("No entries for selected date.")
-else:
-    st.info("No food entries yet.")
 
 # ========== DAILY NOTES ==========
 st.markdown("---")
@@ -185,5 +187,5 @@ if st.button("💾 Save Daily Note"):
         try:
             notes_ws.append_row([note_date.strftime("%Y-%m-%d"), daily_note_text, datetime.datetime.now().isoformat()])
             st.success("Note saved.")
-        except APIError as e:
-            st.error(f"❌ Failed to save note: {e}")
+        except Exception as e:
+            st.error(f"Failed to save note: {e}")
