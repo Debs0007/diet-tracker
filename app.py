@@ -30,7 +30,7 @@ except Exception as e:
     st.error(f"❌ Unexpected error during Google Sheets authentication:\n{e}")
     st.stop()
 
-# ========== HELPER FUNCTION ==========
+# ========== HELPER ==========
 def ensure_worksheet(name, header):
     """Ensure a worksheet exists; create if missing."""
     try:
@@ -43,8 +43,7 @@ def ensure_worksheet(name, header):
 
 # ========== WORKSHEETS ==========
 meals_ws = ensure_worksheet(MEALS_SHEET,
-    ["date", "time", "food_name", "grams", "protein_g", "carbs_g", "fat_g", "calories",
-     "daily_calorie_goal", "daily_protein_goal", "notes"])
+    ["date", "time", "food_name", "grams", "protein_g", "carbs_g", "fat_g", "calories", "daily_calorie_goal", "daily_protein_goal", "notes"])
 goals_ws = ensure_worksheet(GOALS_SHEET, ["month_year","calorie_goal","protein_goal","created_at"])
 notes_ws = ensure_worksheet(NOTES_SHEET, ["date","note","created_at"])
 
@@ -52,7 +51,7 @@ notes_ws = ensure_worksheet(NOTES_SHEET, ["date","note","created_at"])
 st.title("🍽️ Diet Tracker")
 st.markdown("Enter each food you eat — it auto-saves to Google Sheets.")
 
-# Columns for food entry and quick actions
+# Left column: quick food entry
 col1, col2 = st.columns([2,1])
 with col1:
     entry_date = st.date_input("📅 Date", datetime.date.today())
@@ -70,7 +69,6 @@ with col1:
 with col2:
     st.markdown("### 📊 Quick Actions")
     add_btn = st.button("➕ Add Food (Auto-Save)")
-
     st.markdown("---")
     st.markdown("### 🎯 Monthly Goals")
     today = datetime.date.today()
@@ -87,31 +85,26 @@ st.markdown("---")
 
 # ========== GOALS LOGIC ==========
 def upsert_goal(ws, month_label, cal_goal, prot_goal):
-    try:
-        records = ws.get_all_records()
-        for i, r in enumerate(records, start=2):  # row 1 is header
-            if r.get("month_year") == month_label:
-                ws.update(f"A{i}:C{i}", [[month_label, cal_goal, prot_goal]])
-                ws.update(f"D{i}", datetime.datetime.now().isoformat())
-                return "updated"
-        # Not found -> append row
-        ws.append_row([month_label, cal_goal, prot_goal, datetime.datetime.now().isoformat()])
-        return "created"
-    except Exception as e:
-        st.error(f"Failed to set/update goal: {e}")
-        return "failed"
+    records = ws.get_all_records()
+    for i, r in enumerate(records, start=2):
+        if r.get("month_year") == month_label:
+            ws.update(f"B{i}", cal_goal)
+            ws.update(f"C{i}", prot_goal)
+            ws.update(f"D{i}", datetime.datetime.now().isoformat())
+            return "updated"
+    ws.append_row([month_label, cal_goal, prot_goal, datetime.datetime.now().isoformat()])
+    return "created"
 
 if set_goal_btn:
-    result = upsert_goal(goals_ws, month_year_label, calorie_goal_input, protein_goal_input)
-    if result != "failed":
+    try:
+        result = upsert_goal(goals_ws, month_year_label, calorie_goal_input, protein_goal_input)
         st.success(f"Goal {result} for {month_year_label}: {calorie_goal_input} kcal/day, {protein_goal_input} g protein/day")
+    except APIError as e:
+        st.error(f"❌ Failed to update goal: {e}")
 
 # ========== AUTO-SAVE FOOD ENTRY ==========
 def append_meal_row(ws, row):
-    try:
-        ws.append_row(row)
-    except Exception as e:
-        st.error(f"Failed to save food entry: {e}")
+    ws.append_row(row)
 
 if add_btn:
     if not food_name.strip():
@@ -130,8 +123,11 @@ if add_btn:
             round(daily_prot_goal,1),
             entry_notes
         ]
-        append_meal_row(meals_ws, row)
-        st.success(f"Saved: {food_name} ({row[2]} at {row[1]})")
+        try:
+            append_meal_row(meals_ws, row)
+            st.success(f"Saved: {food_name} ({row[2]} at {row[1]})")
+        except APIError as e:
+            st.error(f"❌ Failed to save food: {e}")
 
 # ========== DAILY SUMMARY ==========
 st.markdown("## 📅 Daily Summary")
@@ -144,20 +140,15 @@ except Exception as e:
     st.error(f"Failed to fetch meals: {e}")
     meals_df = pd.DataFrame()
 
-if meals_df.empty:
-    st.info("No food entries yet.")
-else:
-    day_str = summary_date.strftime("%Y-%m-%d")
-    df_day = meals_df[meals_df["date"] == day_str]
-    if df_day.empty:
-        st.info("No entries for selected date.")
-    else:
-        # Compute metrics
+if not meals_df.empty:
+    df_day = meals_df[meals_df["date"] == summary_date.strftime("%Y-%m-%d")]
+    if not df_day.empty:
         sum_cal = df_day["calories"].astype(float).sum()
         sum_prot = df_day["protein_g"].astype(float).sum()
         sum_carbs = df_day["carbs_g"].astype(float).sum()
         sum_fat = df_day["fat_g"].astype(float).sum()
-        st.write(f"**Date:** {day_str}")
+
+        st.write(f"**Date:** {summary_date.strftime('%Y-%m-%d')}")
         col_a, col_b, col_c = st.columns(3)
         col_a.metric("Calories (kcal)", f"{sum_cal:.0f}")
         col_b.metric("Protein (g)", f"{sum_prot:.1f}")
@@ -171,12 +162,16 @@ else:
         if goal_row:
             cal_goal = float(goal_row.get("calorie_goal"))
             prot_goal = float(goal_row.get("protein_goal"))
-            st.write(f"**Goal for {month_label_for_day}:** {cal_goal} kcal/day, {prot_goal} g protein/day")
             cal_ok = "✅" if sum_cal <= cal_goal else "⚠️ Exceeded"
             prot_ok = "✅" if sum_prot >= prot_goal else "⚠️ Low"
+            st.write(f"**Goal for {month_label_for_day}:** {cal_goal} kcal/day, {prot_goal} g protein/day")
             st.write(f"Calories: {cal_ok}  —  Protein: {prot_ok}")
 
         st.dataframe(df_day.reset_index(drop=True))
+    else:
+        st.info("No entries for selected date.")
+else:
+    st.info("No food entries yet.")
 
 # ========== DAILY NOTES ==========
 st.markdown("---")
@@ -190,5 +185,5 @@ if st.button("💾 Save Daily Note"):
         try:
             notes_ws.append_row([note_date.strftime("%Y-%m-%d"), daily_note_text, datetime.datetime.now().isoformat()])
             st.success("Note saved.")
-        except Exception as e:
-            st.error(f"Failed to save note: {e}")
+        except APIError as e:
+            st.error(f"❌ Failed to save note: {e}")
