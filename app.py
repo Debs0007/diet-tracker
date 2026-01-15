@@ -159,7 +159,7 @@ else:
         col_a.metric("Calories (kcal)", f"{sum_cal:.0f}")
         col_b.metric("Protein (g)", f"{sum_prot:.1f}")
         col_c.metric("Carbs (g)", f"{sum_carbs:.1f}")
-        st.write(f"Fat: {sum_fat:.1f} g | Fiber: {sum_fiber:.1f} g")
+        st.write(f"Fat: {sum_fat:.1f} g")
 
         month_label_for_day = summary_date.strftime("%Y-%m")
         goals = goals_ws.get_all_records()
@@ -190,6 +190,7 @@ if st.button("💾 Save Daily Note"):
             st.success("Note saved.")
         except Exception as e:
             st.error(f"Failed to save note: {e}")
+
 
 
 
