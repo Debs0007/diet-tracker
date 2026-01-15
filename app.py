@@ -149,11 +149,11 @@ else:
     if df_day.empty:
         st.info("No entries for selected date.")
     else:
-        sum_cal = df_day["calories_kcal"].astype(float).sum()
+        sum_cal = df_day["calories"].astype(float).sum()
         sum_prot = df_day["protein_g"].astype(float).sum()
         sum_carbs = df_day["carbs_g"].astype(float).sum()
         sum_fat = df_day["fat_g"].astype(float).sum()
-        sum_fiber = df_day["fiber_g"].astype(float).sum()
+        sum_qty = df_day["grams"].astype(float).sum()  # if you want quantity
         st.write(f"**Date:** {day_str}")
         col_a, col_b, col_c = st.columns(3)
         col_a.metric("Calories (kcal)", f"{sum_cal:.0f}")
@@ -190,5 +190,6 @@ if st.button("💾 Save Daily Note"):
             st.success("Note saved.")
         except Exception as e:
             st.error(f"Failed to save note: {e}")
+
 
 
