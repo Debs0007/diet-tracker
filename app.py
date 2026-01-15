@@ -44,7 +44,7 @@ def ensure_worksheet(name, header):
 
 # ========== WORKSHEETS ==========
 meals_ws = ensure_worksheet(MEALS_SHEET,
-    ["date", "time", "food_item", "quantity_g", "calories_kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "notes"])
+    ["date", "time", "food_name", "grams", "protein_g", "carbs_g", "fat_g", "calories", "daily_calorie_goal", "daily_protein_goal", "notes"])
 goals_ws = ensure_worksheet(GOALS_SHEET, ["month_year","calorie_goal","protein_goal","created_at"])
 notes_ws = ensure_worksheet(NOTES_SHEET, ["date","note","created_at"])
 
@@ -63,7 +63,6 @@ with col1:
     protein = st.number_input("💪 Protein (g)", min_value=0.0, value=20.0, step=0.1)
     carbs = st.number_input("🥖 Carbs (g)", min_value=0.0, value=30.0, step=0.1)
     fat = st.number_input("🧈 Fat (g)", min_value=0.0, value=5.0, step=0.1)
-    fiber = st.number_input("🌾 Fiber (g)", min_value=0.0, value=2.0, step=0.1)
     entry_notes = st.text_area("📝 Notes for this entry (optional)", value="", max_chars=500)
 
 with col2:
@@ -109,17 +108,19 @@ if add_btn:
         st.warning("Please enter a food name.")
     else:
         row = [
-            entry_date.strftime("%Y-%m-%d"),
-            entry_time.strftime("%H:%M:%S"),
-            food_item,
-            round(qty,1),
-            round(calories,1),
-            round(protein,1),
-            round(carbs,1),
-            round(fat,1),
-            round(fiber,1),
-            entry_notes
-        ]
+    entry_date.strftime("%Y-%m-%d"),  # date
+    entry_time.strftime("%H:%M:%S"),  # time
+    food_item,                         # food_name
+    round(qty,1),                      # grams
+    round(protein,1),                  # protein_g
+    round(carbs,1),                    # carbs_g
+    round(fat,1),                      # fat_g
+    round(calories,1),                 # calories
+    calorie_goal_input,                # daily_calorie_goal
+    protein_goal_input,                # daily_protein_goal
+    entry_notes                        # notes
+]
+
         try:
             append_meal_row(meals_ws, row)
             st.success(f"Saved: {food_item} ({row[2]} at {row[1]})")
@@ -186,3 +187,4 @@ if st.button("💾 Save Daily Note"):
             st.success("Note saved.")
         except Exception as e:
             st.error(f"Failed to save note: {e}")
+
