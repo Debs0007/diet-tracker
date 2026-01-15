@@ -49,7 +49,7 @@ notes_ws = ensure_worksheet(NOTES_SHEET, ["date","note","created_at"])
 
 # ========== UI ==========
 st.title("🍽️ Diet Tracker")
-st.markdown("Enter each food you eat (one row per food) — it auto-saves to Google Sheets.")
+st.markdown("Enter each food you eat — it auto-saves to Google Sheets.")
 
 # Left column: quick food entry
 col1, col2 = st.columns([2,1])
@@ -69,6 +69,7 @@ with col1:
 with col2:
     st.markdown("### 📊 Quick Actions")
     add_btn = st.button("➕ Add Food (Auto-Save)")
+
     st.markdown("---")
     st.markdown("### 🎯 Monthly Goals")
     today = datetime.date.today()
@@ -126,13 +127,14 @@ if add_btn:
         except Exception as e:
             st.error(f"Save failed: {e}")
 
-# ========== DAILY SUMMARY & CHECKS ==========
+# ========== DAILY SUMMARY ==========
 st.markdown("## 📅 Daily Summary")
 summary_date = st.date_input("Select a date to view summary", datetime.date.today(), key="summary_date")
 
 try:
     all_meals = meals_ws.get_all_records()
     meals_df = pd.DataFrame(all_meals)
+    meals_df.columns = meals_df.columns.str.strip()  # remove extra spaces
 except Exception as e:
     st.error(f"Failed to fetch meals: {e}")
     meals_df = pd.DataFrame()
@@ -145,6 +147,7 @@ else:
     if df_day.empty:
         st.info("No entries for selected date.")
     else:
+        # Calculate metrics
         sum_cal = df_day["calories"].astype(float).sum()
         sum_prot = df_day["protein_g"].astype(float).sum()
         sum_carbs = df_day["carbs_g"].astype(float).sum()
@@ -156,7 +159,7 @@ else:
         col_c.metric("Carbs (g)", f"{sum_carbs:.1f}")
         st.write(f"Fat: {sum_fat:.1f} g")
 
-        # Show goal comparison if set
+        # Show goals for month
         month_label_for_day = summary_date.strftime("%Y-%m")
         goals = goals_ws.get_all_records()
         goal_row = next((g for g in goals if g.get("month_year") == month_label_for_day), None)
@@ -167,6 +170,8 @@ else:
             cal_ok = "✅" if sum_cal <= cal_goal else "⚠️ Exceeded"
             prot_ok = "✅" if sum_prot >= prot_goal else "⚠️ Low"
             st.write(f"Calories: {cal_ok}  —  Protein: {prot_ok}")
+        else:
+            st.info("No goal set for this month.")
 
         st.dataframe(df_day.reset_index(drop=True))
 
