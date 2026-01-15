@@ -85,13 +85,16 @@ st.markdown("---")
 
 # ========== GOALS LOGIC ==========
 def upsert_goal(ws, month_label, cal_goal, prot_goal):
+    # fetch all rows
     records = ws.get_all_records()
-    for i, r in enumerate(records, start=2):
+    # search for month_label
+    for i, r in enumerate(records, start=2):  # gspread is 1-indexed, header is row 1
         if r.get("month_year") == month_label:
-            ws.update(f"B{i}", cal_goal)
-            ws.update(f"C{i}", prot_goal)
-            ws.update(f"D{i}", datetime.datetime.now().isoformat())
+            ws.update(f"B{i}", [[cal_goal]])  # wrap in [[ ]] to fix APIError
+            ws.update(f"C{i}", [[prot_goal]])
+            ws.update(f"D{i}", [[datetime.datetime.now().isoformat()]])
             return "updated"
+    # not found -> append row
     ws.append_row([month_label, cal_goal, prot_goal, datetime.datetime.now().isoformat()])
     return "created"
 
@@ -187,4 +190,5 @@ if st.button("💾 Save Daily Note"):
             st.success("Note saved.")
         except Exception as e:
             st.error(f"Failed to save note: {e}")
+
 
