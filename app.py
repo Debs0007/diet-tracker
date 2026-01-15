@@ -6,7 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ========== CONFIG ==========
-SHEET_NAME = "Diet Logs"
+SHEET_NAME = "Diet Logging"
 MEALS_SHEET = "Meals"        # sheet/tab for food entries
 GOALS_SHEET = "Goals"        # sheet/tab for monthly goals
 NOTES_SHEET = "Daily_Notes"  # sheet/tab for end-of-day notes
@@ -175,4 +175,5 @@ if st.button("💾 Save Daily Note"):
     else:
         notes_ws.append_row([note_date.strftime("%Y-%m-%d"), daily_note_text, datetime.datetime.now().isoformat()])
         st.success("Note saved.")
+
 
